@@ -49,12 +49,13 @@ export async function getEmployee(
     throw new Error("A valid employee ID is required.");
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employees")
     .select(`
       id,
+      company_id,
       employee_number,
       first_name,
       last_name,
@@ -138,7 +139,7 @@ export async function getEmployeeLeave(
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_leave_requests")
@@ -165,7 +166,7 @@ export async function getEmployeeTraining(employeeId: string) {
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_training")
@@ -198,7 +199,7 @@ export async function getEmployeePerformance(
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_performance_reviews")
@@ -230,7 +231,7 @@ export async function getEmployeeCompensation(
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_compensation")
@@ -266,7 +267,7 @@ async function getEmployeeDocumentCount(
     return 0;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { count, error } = await supabase
     .from("employee_documents")

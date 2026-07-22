@@ -32,7 +32,7 @@ export async function getEmployeeEmergencyContacts(
     return [];
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_emergency_contacts")
@@ -81,7 +81,7 @@ export async function getEmployeeEmergencyContactById(
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_emergency_contacts")

@@ -1,22 +1,28 @@
 import type { EmployeeLeaveRequest } from "@/app/dashboard/employees/services/employee-leave.service";
 
-import LeaveRow from "./leave-request-row";
+import LeaveRequestRow, {
+  type LeaveUserRole,
+} from "./leave-request-row";
 
-interface LeaveTableProps {
+interface LeaveRequestTableProps {
   employeeId: string;
+  companyId: string;
   requests: EmployeeLeaveRequest[];
+  currentUserRole: LeaveUserRole;
 }
 
-export default function LeaveTable({
+export default function LeaveRequestTable({
   employeeId,
+  companyId,
   requests,
-}: LeaveTableProps) {
+  currentUserRole,
+}: LeaveRequestTableProps) {
   if (requests.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed bg-background p-10 text-center">
-        <h2 className="text-base font-semibold">
+      <div className="rounded-lg border bg-card p-8 text-center">
+        <h3 className="text-base font-semibold">
           No leave requests
-        </h2>
+        </h3>
 
         <p className="mt-1 text-sm text-muted-foreground">
           This employee does not have any leave requests yet.
@@ -26,47 +32,45 @@ export default function LeaveTable({
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-background">
+    <div className="overflow-hidden rounded-lg border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px] text-sm">
-          <thead className="border-b bg-muted/40">
+        <table className="min-w-full border-collapse">
+          <thead className="bg-muted/40">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Leave type
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Leave Type
               </th>
 
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Start date
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                Start Date
               </th>
 
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                End date
+              <th className="px-4 py-3 text-left text-sm font-semibold">
+                End Date
               </th>
 
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+              <th className="px-4 py-3 text-left text-sm font-semibold">
                 Days
               </th>
 
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+              <th className="px-4 py-3 text-left text-sm font-semibold">
                 Status
               </th>
 
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                Reason
-              </th>
-
-              <th className="px-4 py-3 text-right font-medium text-muted-foreground">
+              <th className="px-4 py-3 text-left text-sm font-semibold">
                 Actions
               </th>
             </tr>
           </thead>
 
-          <tbody className="divide-y">
+          <tbody>
             {requests.map((request) => (
-              <LeaveRow
+              <LeaveRequestRow
                 key={request.id}
                 employeeId={employeeId}
+                companyId={companyId}
                 request={request}
+                currentUserRole={currentUserRole}
               />
             ))}
           </tbody>

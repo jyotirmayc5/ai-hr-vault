@@ -9,7 +9,7 @@ function firstOrNull<T>(value: T | T[] | null | undefined): T | null {
 export async function getEmployeeDocuments(
   employeeId: string
 ): Promise<EmployeeDocument[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_documents")

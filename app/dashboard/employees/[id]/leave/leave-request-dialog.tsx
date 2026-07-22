@@ -1,546 +1,424 @@
 "use client";
 
 import {
-  useActionState,
-  useEffect,
-  useId,
   useState,
+  useTransition,
+  type ReactElement,
 } from "react";
+import { CalendarDays, Loader2, Pencil, Plus } from "lucide-react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
 import {
-  CalendarPlus,
-  Loader2,
-  Pencil,
-  X,
-} from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+
+import type { EmployeeLeaveRequest } from "@/app/dashboard/employees/services/employee-leave.service";
 
 import {
   createLeaveRequest,
   updateLeaveRequest,
-  type LeaveRequestActionState,
 } from "./leave-actions";
-
-import type { EmployeeLeaveRequest } from "@/app/dashboard/employees/services/employee-leave.service";
 
 interface LeaveRequestDialogProps {
   employeeId: string;
+  companyId: string;
   request?: EmployeeLeaveRequest | null;
-  buttonLabel?: string;
+  trigger?: ReactElement;
 }
 
-const initialState: LeaveRequestActionState = {
-  success: false,
-  message: null,
-  validationErrors: undefined,
-};
-
-function toInputDate(
-  value: string | null | undefined,
-): string {
-  if (!value) {
-    return "";
-  }
-
-  return value.slice(0, 10);
+interface LeaveFormState {
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  reason: string;
 }
 
-function getFieldError(
-  errors: string[] | undefined,
-): string | null {
-  return errors?.[0] ?? null;
+interface LeaveActionResult {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  validationErrors?: Record<string, string[] | undefined>;
+}
+
+function getInitialFormState(
+  request?: EmployeeLeaveRequest | null,
+): LeaveFormState {
+  return {
+    leaveType: request?.leave_type ?? "",
+    startDate: request?.start_date ?? "",
+    endDate: request?.end_date ?? "",
+    reason: request?.reason ?? "",
+  };
+}
+
+function getValidationMessage(
+  errors: Record<string, string[] | undefined>,
+  field: string,
+): string | undefined {
+  return errors[field]?.[0];
 }
 
 export default function LeaveRequestDialog({
   employeeId,
-  request = null,
-  buttonLabel,
+  companyId,
+  request,
+  trigger,
 }: LeaveRequestDialogProps) {
+  const isEditing = Boolean(request);
+
   const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const dialogTitleId = useId();
-  const dialogDescriptionId = useId();
+  const [formState, setFormState] = useState<LeaveFormState>(() =>
+    getInitialFormState(request),
+  );
 
-  const isEditing = request !== null;
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string[] | undefined>
+  >({});
 
-  async function submitLeaveRequest(
-    previousState: LeaveRequestActionState,
-    formData: FormData,
-  ): Promise<LeaveRequestActionState> {
-    if (request) {
-      return updateLeaveRequest(
-        employeeId,
-        request.id,
-        previousState,
-        formData,
-      );
-    }
-
-    return createLeaveRequest(
-      employeeId,
-      previousState,
-      formData,
-    );
+  function resetForm(): void {
+    setFormState(getInitialFormState(request));
+    setValidationErrors({});
   }
 
-  const [state, formAction, isPending] = useActionState<
-    LeaveRequestActionState,
-    FormData
-  >(submitLeaveRequest, initialState);
+  function handleOpenChange(nextOpen: boolean): void {
+    setOpen(nextOpen);
 
-  useEffect(() => {
-    if (state.success) {
-      setOpen(false);
+    if (nextOpen) {
+      resetForm();
     }
-  }, [state.success]);
+  }
 
-  useEffect(() => {
-    if (!open) {
-      return;
+  function updateField<K extends keyof LeaveFormState>(
+    field: K,
+    value: LeaveFormState[K],
+  ): void {
+    setFormState((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    setValidationErrors((current) => ({
+      ...current,
+      [field]: undefined,
+      general: undefined,
+    }));
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+
+    const formData = new FormData();
+
+    formData.set("employee_id", employeeId);
+    formData.set("company_id", companyId);
+    formData.set("leave_type", formState.leaveType);
+    formData.set("start_date", formState.startDate);
+    formData.set("end_date", formState.endDate);
+    formData.set("reason", formState.reason);
+
+    if (request?.id) {
+      formData.set("request_id", request.id);
+      formData.set("leave_request_id", request.id);
+      formData.set("id", request.id);
     }
 
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape" && !isPending) {
+    startTransition(async () => {
+      try {
+        const initialState = {
+          success: false,
+          message: "",
+        };
+
+        const result = isEditing
+          ? await updateLeaveRequest(initialState, formData)
+          : await createLeaveRequest(initialState, formData);
+
+        if (result.validationErrors) {
+          setValidationErrors(result.validationErrors);
+
+          toast.error(
+            result.message || "Please correct the highlighted fields.",
+          );
+
+          return;
+        }
+
+        if (!result.success) {
+          toast.error(
+            result.message || "The leave request could not be saved.",
+          );
+
+          return;
+        }
+
+        toast.success(
+          result?.message ??
+            (isEditing
+              ? "Leave request updated successfully."
+              : "Leave request created successfully."),
+        );
+
         setOpen(false);
+        resetForm();
+      } catch (error) {
+        console.error("Failed to save leave request:", error);
+
+        toast.error(
+          isEditing
+            ? "The leave request could not be updated."
+            : "The leave request could not be created.",
+        );
       }
-    }
-
-    document.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape,
-      );
-    };
-  }, [open, isPending]);
-
-  function handleClose() {
-    if (!isPending) {
-      setOpen(false);
-    }
+    });
   }
 
-  const triggerLabel =
-    buttonLabel ??
-    (isEditing ? "Edit" : "New leave request");
+  const generalError = getValidationMessage(validationErrors, "general");
+  const leaveTypeError = getValidationMessage(
+    validationErrors,
+    "leave_type",
+  );
+  const startDateError = getValidationMessage(
+    validationErrors,
+    "start_date",
+  );
+  const endDateError = getValidationMessage(validationErrors, "end_date");
+  const reasonError = getValidationMessage(validationErrors, "reason");
+
+  const defaultTrigger = isEditing ? (
+    <Button type="button" variant="outline" size="sm">
+      <Pencil className="mr-2 h-4 w-4" />
+      Edit
+    </Button>
+  ) : (
+    <Button type="button">
+      <Plus className="mr-2 h-4 w-4" />
+      New leave request
+    </Button>
+  );
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={
-          isEditing
-            ? `Edit ${request?.leave_type ?? ""} leave request`
-            : "Create a new leave request"
-        }
-        className={
-          isEditing
-            ? [
-                "inline-flex h-9 items-center justify-center",
-                "gap-2 rounded-md border bg-background px-3",
-                "text-sm font-medium transition-colors",
-                "hover:bg-muted focus-visible:outline-none",
-                "focus-visible:ring-2 focus-visible:ring-ring",
-                "focus-visible:ring-offset-2",
-              ].join(" ")
-            : [
-                "inline-flex h-10 items-center justify-center",
-                "gap-2 rounded-md bg-primary px-4",
-                "text-sm font-medium text-primary-foreground",
-                "transition-colors hover:bg-primary/90",
-                "focus-visible:outline-none focus-visible:ring-2",
-                "focus-visible:ring-ring focus-visible:ring-offset-2",
-              ].join(" ")
-        }
-      >
-        {isEditing ? (
-          <Pencil className="h-4 w-4" />
-        ) : (
-          <CalendarPlus className="h-4 w-4" />
-        )}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger render={trigger ?? defaultTrigger} />
 
-        {triggerLabel}
-      </button>
+      <DialogContent className="sm:max-w-[560px]">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>
+              {isEditing ? "Edit leave request" : "New leave request"}
+            </DialogTitle>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={dialogTitleId}
-          aria-describedby={dialogDescriptionId}
-        >
-          <button
-            type="button"
-            aria-label="Close leave request dialog"
-            className="absolute inset-0 bg-black/50"
-            onClick={handleClose}
-          />
+            <DialogDescription>
+              {isEditing
+                ? "Update the employee's leave request information."
+                : "Enter the dates and details for the employee's leave request."}
+            </DialogDescription>
+          </DialogHeader>
 
-          <div className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border bg-background shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b px-6 py-5">
-              <div>
-                <h2
-                  id={dialogTitleId}
-                  className="text-lg font-semibold"
-                >
-                  {isEditing
-                    ? "Edit leave request"
-                    : "Create leave request"}
-                </h2>
-
-                <p
-                  id={dialogDescriptionId}
-                  className="mt-1 text-sm text-muted-foreground"
-                >
-                  {isEditing
-                    ? "Update the leave type, dates, reason, or request status."
-                    : "Add a new leave request for this employee."}
-                </p>
+          <div className="grid gap-5 py-6">
+            {generalError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {generalError}
               </div>
+            ) : null}
 
-              <button
-                type="button"
-                onClick={handleClose}
-                disabled={isPending}
-                aria-label="Close dialog"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+            <input
+              type="hidden"
+              name="employee_id"
+              value={employeeId}
+            />
 
-            <form action={formAction}>
+            <input
+              type="hidden"
+              name="company_id"
+              value={companyId}
+            />
+
+            {request?.id ? (
               <input
                 type="hidden"
-                name="employee_id"
-                value={employeeId}
+                name="request_id"
+                value={request.id}
               />
+            ) : null}
 
-              {request ? (
-                <input
-                  type="hidden"
-                  name="leave_request_id"
-                  value={request.id}
-                />
+            <div className="grid gap-2">
+              <Label htmlFor="leave-type">
+                Leave type <span className="text-destructive">*</span>
+              </Label>
+
+            <Select
+              value={formState.leaveType}
+              onValueChange={(value) =>
+                updateField("leaveType", value ?? "")
+              }
+              disabled={isPending}
+            >
+                <SelectTrigger
+                  id="leave-type"
+                  aria-invalid={Boolean(leaveTypeError)}
+                >
+                  <SelectValue placeholder="Select a leave type" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  <SelectItem value="vacation">Vacation</SelectItem>
+                  <SelectItem value="sick">Sick leave</SelectItem>
+                  <SelectItem value="personal">Personal leave</SelectItem>
+                  <SelectItem value="bereavement">Bereavement</SelectItem>
+                  <SelectItem value="parental">Parental leave</SelectItem>
+                  <SelectItem value="jury_duty">Jury duty</SelectItem>
+                  <SelectItem value="unpaid">Unpaid leave</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {leaveTypeError ? (
+                <p className="text-sm text-destructive">
+                  {leaveTypeError}
+                </p>
               ) : null}
+            </div>
 
-              <div className="space-y-5 px-6 py-6">
-                {state.message && !state.success ? (
-                  <div
-                    role="alert"
-                    className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                  >
-                    {state.message}
-                  </div>
-                ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="start-date">
+                  Start date <span className="text-destructive">*</span>
+                </Label>
 
-                {state.validationErrors?.general?.length ? (
-                  <div
-                    role="alert"
-                    className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                  >
-                    {state.validationErrors.general[0]}
-                  </div>
-                ) : null}
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
-                <div className="space-y-2">
-                  <label
-                    htmlFor={`leave_type-${request?.id ?? "new"}`}
-                    className="text-sm font-medium"
-                  >
-                    Leave type
-                  </label>
-
-                  <select
-                    id={`leave_type-${request?.id ?? "new"}`}
-                    name="leave_type"
-                    defaultValue={request?.leave_type ?? ""}
+                  <Input
+                    id="start-date"
+                    name="start_date"
+                    type="date"
+                    className="pl-9"
+                    value={formState.startDate}
+                    onChange={(event) =>
+                      updateField("startDate", event.target.value)
+                    }
+                    aria-invalid={Boolean(startDateError)}
                     disabled={isPending}
                     required
-                    aria-invalid={
-                      Boolean(
-                        state.validationErrors?.leave_type
-                          ?.length,
-                      )
-                    }
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <option value="">
-                      Select leave type
-                    </option>
-                    <option value="vacation">
-                      Vacation
-                    </option>
-                    <option value="sick">
-                      Sick leave
-                    </option>
-                    <option value="personal">
-                      Personal leave
-                    </option>
-                    <option value="bereavement">
-                      Bereavement
-                    </option>
-                    <option value="parental">
-                      Parental leave
-                    </option>
-                    <option value="medical">
-                      Medical leave
-                    </option>
-                    <option value="jury_duty">
-                      Jury duty
-                    </option>
-                    <option value="unpaid">
-                      Unpaid leave
-                    </option>
-                    <option value="other">
-                      Other
-                    </option>
-                  </select>
+                  />
+                </div>
 
-                  {getFieldError(
-                    state.validationErrors?.leave_type,
-                  ) ? (
-                    <p className="text-sm text-red-600">
-                      {getFieldError(
-                        state.validationErrors?.leave_type,
-                      )}
+                {startDateError ? (
+                  <p className="text-sm text-destructive">
+                    {startDateError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="end-date">
+                  End date <span className="text-destructive">*</span>
+                </Label>
+
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+                  <Input
+                    id="end-date"
+                    name="end_date"
+                    type="date"
+                    className="pl-9"
+                    min={formState.startDate || undefined}
+                    value={formState.endDate}
+                    onChange={(event) =>
+                      updateField("endDate", event.target.value)
+                    }
+                    aria-invalid={Boolean(endDateError)}
+                    disabled={isPending}
+                    required
+                  />
+                </div>
+
+                {endDateError ? (
+                  <p className="text-sm text-destructive">
+                    {endDateError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="leave-reason">Reason</Label>
+
+              <Textarea
+                id="leave-reason"
+                name="reason"
+                value={formState.reason}
+                onChange={(event) =>
+                  updateField("reason", event.target.value)
+                }
+                placeholder="Enter the reason or any additional details..."
+                rows={4}
+                maxLength={1000}
+                aria-invalid={Boolean(reasonError)}
+                disabled={isPending}
+              />
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  {reasonError ? (
+                    <p className="text-sm text-destructive">
+                      {reasonError}
                     </p>
                   ) : null}
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor={`start_date-${request?.id ?? "new"}`}
-                      className="text-sm font-medium"
-                    >
-                      Start date
-                    </label>
-
-                    <input
-                      id={`start_date-${request?.id ?? "new"}`}
-                      name="start_date"
-                      type="date"
-                      defaultValue={toInputDate(
-                        request?.start_date,
-                      )}
-                      disabled={isPending}
-                      required
-                      aria-invalid={
-                        Boolean(
-                          state.validationErrors?.start_date
-                            ?.length,
-                        )
-                      }
-                      className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-
-                    {getFieldError(
-                      state.validationErrors?.start_date,
-                    ) ? (
-                      <p className="text-sm text-red-600">
-                        {getFieldError(
-                          state.validationErrors?.start_date,
-                        )}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label
-                      htmlFor={`end_date-${request?.id ?? "new"}`}
-                      className="text-sm font-medium"
-                    >
-                      End date
-                    </label>
-
-                    <input
-                      id={`end_date-${request?.id ?? "new"}`}
-                      name="end_date"
-                      type="date"
-                      defaultValue={toInputDate(
-                        request?.end_date,
-                      )}
-                      disabled={isPending}
-                      required
-                      aria-invalid={
-                        Boolean(
-                          state.validationErrors?.end_date
-                            ?.length,
-                        )
-                      }
-                      className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-
-                    {getFieldError(
-                      state.validationErrors?.end_date,
-                    ) ? (
-                      <p className="text-sm text-red-600">
-                        {getFieldError(
-                          state.validationErrors?.end_date,
-                        )}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor={`reason-${request?.id ?? "new"}`}
-                    className="text-sm font-medium"
-                  >
-                    Reason
-                  </label>
-
-                  <textarea
-                    id={`reason-${request?.id ?? "new"}`}
-                    name="reason"
-                    rows={4}
-                    maxLength={1000}
-                    defaultValue={request?.reason ?? ""}
-                    disabled={isPending}
-                    placeholder="Optional reason or additional details"
-                    className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-
-                  {getFieldError(
-                    state.validationErrors?.reason,
-                  ) ? (
-                    <p className="text-sm text-red-600">
-                      {getFieldError(
-                        state.validationErrors?.reason,
-                      )}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Maximum 1,000 characters.
-                    </p>
-                  )}
-                </div>
-
-                {isEditing ? (
-                  <div className="space-y-2">
-                    <label
-                      htmlFor={`status-${request.id}`}
-                      className="text-sm font-medium"
-                    >
-                      Status
-                    </label>
-
-                    <select
-                      id={`status-${request.id}`}
-                      name="status"
-                      defaultValue={
-                        request.status ?? "pending"
-                      }
-                      disabled={isPending}
-                      aria-invalid={
-                        Boolean(
-                          state.validationErrors?.status
-                            ?.length,
-                        )
-                      }
-                      className="h-10 w-full rounded-md border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <option value="pending">
-                        Pending
-                      </option>
-                      <option value="approved">
-                        Approved
-                      </option>
-                      <option value="rejected">
-                        Rejected
-                      </option>
-                      <option value="cancelled">
-                        Cancelled
-                      </option>
-                    </select>
-
-                    {getFieldError(
-                      state.validationErrors?.status,
-                    ) ? (
-                      <p className="text-sm text-red-600">
-                        {getFieldError(
-                          state.validationErrors?.status,
-                        )}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {isEditing ? (
-                  <div className="space-y-2">
-                    <label
-                      htmlFor={`rejection_reason-${request.id}`}
-                      className="text-sm font-medium"
-                    >
-                      Rejection reason
-                    </label>
-
-                    <textarea
-                      id={`rejection_reason-${request.id}`}
-                      name="rejection_reason"
-                      rows={3}
-                      defaultValue={
-                        request.rejection_reason ?? ""
-                      }
-                      disabled={isPending}
-                      placeholder="Required when rejecting a request"
-                      className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-
-                    {getFieldError(
-                      state.validationErrors
-                        ?.rejection_reason,
-                    ) ? (
-                      <p className="text-sm text-red-600">
-                        {getFieldError(
-                          state.validationErrors
-                            ?.rejection_reason,
-                        )}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Complete this field when setting the
-                        status to rejected.
-                      </p>
-                    )}
-                  </div>
-                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  {formState.reason.length}/1000
+                </p>
               </div>
-
-              <div className="flex items-center justify-end gap-3 border-t px-6 py-4">
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  disabled={isPending}
-                  className="inline-flex h-10 items-center justify-center rounded-md border px-4 text-sm font-medium transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isPending ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : isEditing ? (
-                    "Save changes"
-                  ) : (
-                    "Create request"
-                  )}
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
-      ) : null}
-    </>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+
+            <Button type="submit" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isEditing ? "Saving..." : "Creating..."}
+                </>
+              ) : isEditing ? (
+                "Save changes"
+              ) : (
+                "Create request"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

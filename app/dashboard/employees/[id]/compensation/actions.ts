@@ -17,7 +17,7 @@ type CompensationInput = {
 };
 
 async function requireCanManageCompensation() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const {
     data: { user },
@@ -41,7 +41,7 @@ function getPreviousDate(dateString: string) {
 }
 
 export async function addCompensation(input: CompensationInput) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const user = await requireCanManageCompensation();
 
     const { data: employee, error: employeeError } = await supabase
@@ -126,7 +126,7 @@ export async function editCompensation(
   employeeId: string,
   input: Omit<CompensationInput, "employeeId">
 ) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const user = await requireCanManageCompensation();
 
   const annualSalary =

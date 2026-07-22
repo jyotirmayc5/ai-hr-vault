@@ -4,7 +4,7 @@ import type { EmployeeCompensation } from "@/types/employee";
 export async function getEmployeeCompensation(
   employeeId: string
 ): Promise<EmployeeCompensation[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   const { data, error } = await supabase
     .from("employee_compensation")

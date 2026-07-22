@@ -1,4 +1,4 @@
-import DataTable from "@/components/ui/DataTable";
+import DataTable from "@/components/ui/DataTable.old";
 
 const auditLogs = [
   { action: "Updated compensation", user: "Admin User", date: "Jan 14, 2026", status: "Completed" },

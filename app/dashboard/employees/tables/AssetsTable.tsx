@@ -1,4 +1,4 @@
-import DataTable from "@/components/ui/DataTable";
+import DataTable from "@/components/ui/DataTable.old";
 
 const assets = [
   { asset: "Laptop", serialNumber: "LAP-1001", assignedDate: "Jan 10, 2026", status: "Assigned" },

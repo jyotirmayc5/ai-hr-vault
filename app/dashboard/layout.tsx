@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 import Sidebar from "../../components/dashboard/Sidebar";
-import TopNavbar from "../../components/dashboard/TopNavbar";
 import CommandPalette from "../../components/dashboard/CommandPalette";
+import TopNavbar from "../../components/dashboard/TopNavbar";
 
 export default function DashboardLayout({
   children,
@@ -20,7 +20,10 @@ export default function DashboardLayout({
   return (
     <div className={darkMode ? "dark" : ""}>
       <div className="flex min-h-screen bg-gray-100 text-gray-900 dark:bg-slate-950 dark:text-white">
-        <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+        <Sidebar
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
 
         <div className="flex flex-1 flex-col">
           <TopNavbar
@@ -36,7 +39,10 @@ export default function DashboardLayout({
           <main className="flex-1 p-6">{children}</main>
         </div>
 
-        <CommandPalette open={commandOpen} setOpen={setCommandOpen} />
+        <CommandPalette
+          open={commandOpen}
+          setOpen={setCommandOpen}
+        />
       </div>
     </div>
   );

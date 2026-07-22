@@ -1,4 +1,4 @@
-import DataTable from "@/components/ui/DataTable";
+import DataTable from "@/components/ui/DataTable.old";
 
 const training = [
   { course: "Security Awareness", category: "Compliance", status: "Completed", dueDate: "Jan 31, 2026" },

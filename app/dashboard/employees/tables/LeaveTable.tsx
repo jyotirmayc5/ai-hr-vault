@@ -1,4 +1,4 @@
-import DataTable from "@/components/ui/DataTable";
+import DataTable from "@/components/ui/DataTable.old";
 
 interface LeaveTableProps {
   leave: {
